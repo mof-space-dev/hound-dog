@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HOUND DOG // INFINITE ACCEL LOOP</title>
+  <!-- p5.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #121215;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: #e0e0e5;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 1.1rem;
+      letter-spacing: 2px;
+      color: #9095a5; /* 文字だけグレーカラー */
+    }
+    canvas {
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9);
+      border: 2px solid #2a2a30;
+      max-width: 100%;
+      height: auto !important;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>HOUND DOG // INFINITE ACCEL LOOP</h1>
+
+  <script>
+    let state = 0; // 0: 待機, 1: 走行・壁破壊, 2: 最終衝突, 3: カラーネオン閃光
+    let dogX;
+    let speed = 0;
+    let walls = [];
+    let flashTimer = 0;
+    let rumble = 0;
+    let loopTimer = 0;
+
+    function setup() {
+      // レスポンシブ対応：画面サイズに合わせて初期キャンバスを生成（最大800x500）
+      let w = min(windowWidth - 40, 800);
+      let h = min(windowHeight - 90, 500);
+      let cnv = createCanvas(w, h);
+      cnv.parent(document.body);
+      
+      textFont('sans-serif');
+      resetAnimation();
+    }
+
+    // ウィンドウサイズ変更時にレスポンシブ追従
+    function windowResized() {
+      let w = min(windowWidth - 40, 800);
+      let h = min(windowHeight - 90, 500);
+      resizeCanvas(w, h);
+    }
+
+    function draw() {
+      // ダークなP5背景
+      background(20, 20, 25);
+      
+      // 画面全体の振動（ランブル）
+      push();
+      if (state == 1 || state == 2) {
+        translate(random(-rumble, rumble), random(-rumble, rumble));
+      }
+
+      // 1. 背景の幾何学カラー模様
+      drawP5Background();
+
+      // 2. 壁の描画と破壊判定
+      updateAndDrawWalls();
+
+      // 3. 狂犬の描画と移動
+      if (state !== 3) {
+        updateAndDrawDog();
+      }
+
+      // 4. 状態別の演出
+      if (state == 1) {
+        speed += 0.15; // 加速
+        dogX += speed;
+        rumble = speed * 0.6;
+
+        // 最後の壁を突破したら衝突状態へ
+        if (dogX > width - width * 0.2) {
+          state = 2;
+          flashTimer = 0;
+        }
+      } else if (state == 2) {
+        // 最終衝突 & カラー爆発
+        drawExplosion();
+        flashTimer++;
+        if (flashTimer > 30) {
+          state = 3; // カラーネオン点滅フェーズへ
+          loopTimer = 0;
+        }
+      } else if (state == 3) {
+        // ネオンカラーのランダム全面点滅
+        drawNeonFlash();
+        loopTimer++;
+        
+        // 一定時間でリスタート（無限ループ）
+        if (loopTimer > 45) {
+          resetAnimation();
+        }
+      }
+
+      pop();
+
+      // UI / 操作説明（文字グレー）
+      drawUI();
+    }
+
+    function resetAnimation() {
+      dogX = width * 0.12;
+      speed = 4;
+      state = 1;
+      rumble = 0;
+      flashTimer = 0;
+      loopTimer = 0;
+      
+      walls = [
+        { x: width * 0.38, broken: false, label: "WALL 1" },
+        { x: width * 0.62, broken: false, label: "WALL 2" },
+        { x: width * 0.85, broken: false, label: "FINAL WALL" }
+      ];
+    }
+
+    function keyPressed() {
+      if (key === ' ' || keyCode === RETURN) {
+        resetAnimation();
+      }
+    }
+
+    function mousePressed() {
+      resetAnimation();
+    }
+
+    // P5風の鮮烈なアクセントカラーが入った背景
+    function drawP5Background() {
+      noStroke();
+      // P5風レッドの三角形
+      fill(180, 20, 40, 50);
+      triangle(0, 0, width * 0.4, 0, 0, height);
+      
+      // P5風イエローの三角形
+      fill(250, 200, 0, 35);
+      beginShape();
+      vertex(width, height);
+      vertex(width, height - height * 0.4);
+      vertex(width - width * 0.4, height);
+      endShape(CLOSE);
+    }
+
+    function updateAndDrawWalls() {
+      for (let i = 0; i < walls.length; i++) {
+        let w = walls[i];
+        
+        if (!w.broken && dogX >= w.x - 30 && state == 1) {
+          w.broken = true;
+          rumble = 15;
+        }
+
+        if (!w.broken) {
+          // スタイリッシュな壁
+          fill(50, 55, 65);
+          stroke(240);
+          strokeWeight(2);
+          rect(w.x, height * 0.2, width * 0.05, height * 0.6);
+          
+          stroke(30);
+          for (let y = height * 0.24; y < height * 0.76; y += height * 0.06) {
+            line(w.x, y, w.x + width * 0.05, y);
+          }
+          
+          noStroke();
+          fill(255, 230, 0); // ラベルはイエロー
+          textSize(max(10, width * 0.015));
+          textAlign(CENTER);
+          text(w.label, w.x + width * 0.025, height * 0.16);
+        } else {
+          // 破壊された瓦礫
+          noStroke();
+          fill(100, 105, 115);
+          let scatter = (speed * 2.5);
+          rect(w.x - scatter, height * 0.24, 15, 15);
+          rect(w.x + scatter + 10, height * 0.5, 20, 12);
+          rect(w.x - scatter * 0.8, height * 0.7, 12, 18);
+          
+          // 「BREAK!」は鮮やかなレッド
+          fill(255, 30, 50);
+          textSize(max(12, width * 0.02));
+          text("BREAK!", w.x, height * 0.14 + random(-3, 3));
+        }
+      }
+    }
+
+    function drawAndDogShape(x, y) {
+      push();
+      translate(x, y);
+      
+      // 疾走時の赤い残像
+      if (state == 1) {
+        fill(255, 30, 50, 90);
+        noStroke();
+        ellipse(-speed * 2.5, 0, 70, 45);
+      }
+
+      // 赤黒い狂気のエフェクトオーラ
+      noStroke();
+      fill(255, 0, 0, 120);
+      ellipse(0, 0, 90 + random(-4, 4), 60 + random(-4, 4));
+
+      // 黒狼のボディ
+      fill(35, 35, 40);
+      stroke(255, 230, 0); // 黄色い輪郭
+      strokeWeight(2);
+      ellipse(0, 0, 80, 45);
+      
+      // 頭部
+      triangle(25, -15, 45, -5, 25, 15);
+      
+      // 赤く光る目
+      fill(255, 0, 0);
+      noStroke();
+      ellipse(32, -5, 8, 8);
+
+      // 牙
+      fill(255);
+      triangle(35, 2, 48, 5, 38, 10);
+
+      // 赤い逆立ち毛並み・尻尾
+      stroke(255, 50, 50);
+      strokeWeight(3);
+      line(-35, -10, -50 - random(0, 8), -25);
+      line(-30, -5, -45 - random(0, 8), 0);
+
+      pop();
+    }
+
+    function updateAndDrawDog() {
+      let dogY = height / 2 + sin(frameCount * 0.5) * 8;
+      drawAndDogShape(dogX, dogY);
+
+      if (state == 1 && frameCount % 10 == 0) {
+        fill(255, 255, 255);
+        textSize(max(14, width * 0.022));
+        textAlign(LEFT);
+        text("HOUND DOG ACCEL...", width * 0.15, height * 0.18);
+      }
+    }
+
+    function drawExplosion() {
+      push();
+      translate(width - width * 0.15, height / 2);
+      noStroke();
+      
+      // 鮮やかな多重爆発円
+      fill(255, 230, 0, 200);
+      ellipse(0, 0, flashTimer * 22, flashTimer * 22);
+      fill(255, 30, 50, 220);
+      ellipse(0, 0, flashTimer * 14, flashTimer * 14);
+      fill(255, 255, 255);
+      ellipse(0, 0, flashTimer * 7, flashTimer * 7);
+      
+      fill(255);
+      textSize(max(20, width * 0.04));
+      textAlign(CENTER);
+      text("CRASH & IMPACT!!", 0, -height * 0.18);
+      pop();
+    }
+
+    function drawNeonFlash() {
+      // 鮮烈なネオンカラーパレット
+      let neonColors = [
+        color(255, 20, 147, 220), // ネオンピンク
+        color(0, 255, 255, 220),  // ネオンシアン
+        color(57, 255, 20, 220),  // ネオングリーン
+        color(255, 255, 0, 220),  // ネオンイエロー
+        color(255, 0, 0, 220)     // レッド
+      ];
+      
+      background(random(neonColors));
+      
+      fill(255);
+      textSize(random(28, 50));
+      textAlign(CENTER, CENTER);
+      let neonWords = ["HOUND DOG", "OVERDRIVE", "KABOOM!", "DESTROY", "!!!"];
+      text(random(neonWords), random(width), random(height));
+      
+      stroke(random(neonColors));
+      strokeWeight(random(2, 6));
+      for (let i = 0; i < 5; i++) {
+        line(random(width), random(height), random(width), random(height));
+      }
+    }
+
+    function drawUI() {
+      noStroke();
+      fill(140, 145, 155, 200); // UI文字もグレー
+      textSize(max(10, width * 0.015));
+      textAlign(LEFT, BOTTOM);
+      text("Looping... (Click or SPACE to restart)", 20, height - 10);
+    }
+  </script>
+</body>
+</html>
